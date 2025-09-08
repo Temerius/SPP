@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title><%= title %> · Reading Tracker</title>
+    <link rel="stylesheet" href="/public/styles.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  </head>
+  <body>
+    <header class="container">
+      <h1>Reading Tracker</h1>
+      <nav>
+        <a href="/books">Books</a>
+        <a href="/books/new" class="btn">Add</a>
+      </nav>
+    </header>
+    <main class="container">
+      <section>
+        <h2>Add a new book</h2>
+        <form class="form" method="post" action="/books" enctype="multipart/form-data">
+          <label>Title
+            <input type="text" name="title" required />
+          </label>
+          <label>Author
+            <input type="text" name="author" />
+          </label>
+          <label>Status
+            <select name="status">
+              <option value="planned">Planned</option>
+              <option value="reading">Reading</option>
+              <option value="done">Done</option>
+            </select>
+          </label>
+          <label>Due date
+            <input id="dueDate" type="text" name="dueDate" value="<%= dayjs().format('YYYY-MM-DD') %>" />
+          </label>
+          <label>Attachment
+            <input type="file" name="attachment" />
+          </label>
+          <div class="actions">
+            <button class="btn" type="submit">Create</button>
+            <a class="btn secondary" href="/books">Cancel</a>
+          </div>
+        </form>
+      </section>
+    </main>
+    <footer class="container muted">
+      <p>Server-rendered with Express + EJS</p>
+    </footer>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script>
+      flatpickr('#dueDate', {
+        dateFormat: 'Y-m-d',
+        defaultDate: '<%= dayjs().format('YYYY-MM-DD') %>'
+      });
+    </script>
+  </body>
+  </html>
+
+

@@ -1,0 +1,20 @@
+[
+  {
+    "id": "0110a99a-8b51-4bcc-b1d3-7c498e0706da",
+    "title": "Player's handbook",
+    "author": "Me",
+    "status": "done",
+    "dueDate": "2025-09-07T21:00:00.000Z",
+    "attachmentPath": "/uploads/1757320231319-320719334-cv.pdf",
+    "createdAt": "2025-09-08T08:30:31.325Z"
+  },
+  {
+    "id": "beb0a29f-4f91-4084-8b10-783988357160",
+    "title": "Book1",
+    "author": "Виталя",
+    "status": "planned",
+    "dueDate": "2025-09-25T21:00:00.000Z",
+    "attachmentPath": "/uploads/1757342014717-502632863-falcon2520925_image_20221009234147.png",
+    "createdAt": "2025-09-08T14:28:22.518Z"
+  }
+]

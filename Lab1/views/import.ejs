@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title><%= title %> · Reading Tracker</title>
+    <link rel="stylesheet" href="/public/styles.css" />
+  </head>
+  <body>
+    <header class="container">
+      <h1>Reading Tracker</h1>
+      <nav>
+        <a href="/books">Books</a>
+        <a href="/books/new" class="btn">Add</a>
+      </nav>
+    </header>
+    <main class="container">
+      <section>
+        <h2>Import books from JSON</h2>
+        <form class="form" method="post" action="/books/import" enctype="multipart/form-data">
+          <label>JSON file
+            <input type="file" name="file" accept="application/json" required />
+          </label>
+          <div class="actions">
+            <button class="btn" type="submit">Import</button>
+            <a class="btn secondary" href="/books">Cancel</a>
+          </div>
+        </form>
+        <p class="muted">Импорт заменит текущий список книг. Формат — массив объектов Book.</p>
+      </section>
+    </main>
+    <footer class="container muted">
+      <p>Server-rendered with Express + EJS</p>
+    </footer>
+  </body>
+  </html>
+

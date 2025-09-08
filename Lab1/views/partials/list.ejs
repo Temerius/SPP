@@ -1,0 +1,56 @@
+<section class="stats">
+  <div class="stat">
+    <span class="value"><%= stats.total %></span>
+    <span class="label">Total</span>
+  </div>
+  <div class="stat">
+    <span class="value"><%= stats.planned %></span>
+    <span class="label">Planned</span>
+  </div>
+  <div class="stat">
+    <span class="value"><%= stats.reading %></span>
+    <span class="label">Reading</span>
+  </div>
+  <div class="stat">
+    <span class="value"><%= stats.done %></span>
+    <span class="label">Done</span>
+  </div>
+</section>
+
+<ul class="cards">
+  <% if (books.length === 0) { %>
+    <li class="empty">No books yet.</li>
+  <% } %>
+  <% for (const b of books) { %>
+    <li class="card">
+      <div class="card-header">
+        <h3><%= b.title %></h3>
+        <form method="post" action="/books/<%= b.id %>/delete">
+          <button class="btn danger" type="submit">Delete</button>
+        </form>
+      </div>
+      <p class="muted">by <%= b.author || 'Unknown author' %></p>
+      <p>Status: <strong class="status <%= b.status %>"><%= b.status %></strong></p>
+      <% if (b.dueDate) { %>
+        <p>Due: <%= dayjs(b.dueDate).format('YYYY-MM-DD') %></p>
+      <% } %>
+      <% if (b.attachmentPath && /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(b.attachmentPath)) { %>
+        <img src="<%= b.attachmentPath %>" alt="Attachment preview" style="max-width:100%;border-radius:8px;border:1px solid var(--border)" />
+      <% } %>
+      <% if (b.attachmentPath) { %>
+        <p>Attachment: <a href="<%= b.attachmentPath %>" target="_blank">download</a></p>
+      <% } %>
+      <form class="inline" method="post" action="/books/<%= b.id %>/status">
+        <select name="status" onchange="this.form.submit()">
+          <option value="planned" <%= b.status==='planned'?'selected':'' %>>Planned</option>
+          <option value="reading" <%= b.status==='reading'?'selected':'' %>>Reading</option>
+          <option value="done" <%= b.status==='done'?'selected':'' %>>Done</option>
+        </select>
+        <a class="btn secondary" href="/books/<%= b.id %>/edit">Edit</a>
+      </form>
+      
+    </li>
+  <% } %>
+</ul>
+
+
