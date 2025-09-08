@@ -10,18 +10,18 @@ import { v4 as uuid } from "uuid";
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Views
+
 app.set("view engine", "ejs");
 app.set("views", path.join(process.cwd(), "views"));
 
-// Static
+
 app.use("/public", express.static(path.join(process.cwd(), "public")));
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
-// Forms
+
 app.use(express.urlencoded({ extended: true }));
 
-// Uploads
+
 const uploadDir = path.join(process.cwd(), "uploads");
 const storage = multer.diskStorage({
 	destination: uploadDir,
@@ -33,7 +33,7 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-// Home - list books with filters
+
 app.get(["/", "/books"], async (req: Request, res: Response) => {
 	await ensureStorageInitialized();
 	const { status, q, sort } = req.query as { status?: BookStatus; q?: string; sort?: string };
@@ -83,13 +83,12 @@ app.get(["/", "/books"], async (req: Request, res: Response) => {
 	res.render("index", renderData);
 });
 
-// New book form
+
 app.get("/books/new", (_req: Request, res: Response) => {
 	res.render("new", { title: "Add Book", dayjs });
 });
 
-// Create book
-// Export books JSON (place before :id routes)
+
 app.get("/books/export", async (_req: Request, res: Response) => {
 	await ensureStorageInitialized();
 	const books = await readBooks();
@@ -98,12 +97,12 @@ app.get("/books/export", async (_req: Request, res: Response) => {
 	res.send(JSON.stringify(books, null, 2));
 });
 
-// Import books page (before :id routes)
+
 app.get("/books/import", (_req: Request, res: Response) => {
 	res.render("import", { title: "Import Books" });
 });
 
-// Import books (replace) (before :id routes)
+
 app.post("/books/import", upload.any(), async (req: Request, res: Response) => {
 	await ensureStorageInitialized();
 	const files = (req as any).files as Array<{ path: string; mimetype?: string }> | undefined;
@@ -146,7 +145,7 @@ app.post("/books", upload.single("attachment"), async (req: Request, res: Respon
 	res.redirect("/books");
 });
 
-// Edit form
+
 app.get("/books/:id/edit", async (req: Request, res: Response) => {
 	await ensureStorageInitialized();
 	const { id } = req.params;
@@ -156,7 +155,7 @@ app.get("/books/:id/edit", async (req: Request, res: Response) => {
 	res.render("edit", { title: `Edit ${book.title}`, book, dayjs });
 });
 
-// Update book
+
 app.post("/books/:id", upload.single("attachment"), async (req: Request, res: Response) => {
 	await ensureStorageInitialized();
 	const { id } = req.params;
@@ -169,7 +168,7 @@ app.post("/books/:id", upload.single("attachment"), async (req: Request, res: Re
 	books[idx].status = (status as BookStatus) || books[idx].status;
 	books[idx].dueDate = dueDate ? dayjs(dueDate).toISOString() : undefined;
 	if (req.file) {
-		// remove old file if existed
+		
 		if (books[idx].attachmentPath) {
 			try {
 				const filename = path.basename(books[idx].attachmentPath);
@@ -182,7 +181,7 @@ app.post("/books/:id", upload.single("attachment"), async (req: Request, res: Re
 	res.redirect("/books");
 });
 
-// Update status
+
 app.post("/books/:id/status", async (req: Request, res: Response) => {
 	await ensureStorageInitialized();
 	const { id } = req.params;
@@ -196,74 +195,34 @@ app.post("/books/:id/status", async (req: Request, res: Response) => {
 	res.redirect("/books");
 });
 
-// Delete book
+
 app.post("/books/:id/delete", async (req: Request, res: Response) => {
 	await ensureStorageInitialized();
 	const { id } = req.params;
 	const books = await readBooks();
 	const target = books.find((b) => b.id === id);
 	const next = books.filter((b) => b.id !== id);
-	// Attempt to remove attached file if present
+	
 	if (target?.attachmentPath) {
 		try {
 			const filename = path.basename(target.attachmentPath);
 			const absolute = path.join(process.cwd(), "uploads", filename);
 			await fs.rm(absolute, { force: true });
 		} catch {
-			// Ignore deletion errors
+			
 		}
 	}
 	await saveBooks(next);
 	res.redirect("/books");
 });
 
-// Export books JSON
-app.get("/books/export", async (_req: Request, res: Response) => {
-	await ensureStorageInitialized();
-	const books = await readBooks();
-	res.setHeader("Content-Type", "application/json");
-	res.setHeader("Content-Disposition", 'attachment; filename="books-export.json"');
-	res.send(JSON.stringify(books, null, 2));
-});
 
-// Import books page
-app.get("/books/import", (_req: Request, res: Response) => {
-	res.render("import", { title: "Import Books" });
-});
 
-// Import books (replace)
-app.post("/books/import", upload.any(), async (req: Request, res: Response) => {
-	await ensureStorageInitialized();
-	const files = (req as any).files as Array<{ path: string; mimetype?: string }> | undefined;
-	const jsonFile = files?.find((f) => (f.mimetype?.includes("json") ?? false)) ?? files?.[0];
-	if (!jsonFile) return res.redirect("/books");
-	try {
-		const content = await fs.readFile(jsonFile.path, "utf-8");
-		const parsed = JSON.parse(content);
-		if (!Array.isArray(parsed)) throw new Error("Invalid format");
-		// naive validation of fields
-		const sanitized = parsed.map((it: any) => ({
-			id: String(it.id ?? uuid()),
-			title: String(it.title ?? "Untitled"),
-			author: String(it.author ?? ""),
-			status: (it.status === "planned" || it.status === "reading" || it.status === "done") ? it.status : "planned",
-			dueDate: it.dueDate ? String(it.dueDate) : undefined,
-			attachmentPath: it.attachmentPath ? String(it.attachmentPath) : undefined,
-			createdAt: String(it.createdAt ?? new Date().toISOString()),
-		})) as Book[];
-		await saveBooks(sanitized);
-	} catch {
-		// ignore errors for now
-	}
-	res.redirect("/books");
-});
-
-// Health
 app.get("/healthz", (_req, res) => {
 	res.type("text").send("ok");
 });
 
-// Start server
+
 async function start() {
 	await ensureStorageInitialized();
 	app.listen(PORT, () => {
@@ -272,5 +231,3 @@ async function start() {
 }
 
 start();
-
-
