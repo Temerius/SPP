@@ -1,10 +1,10 @@
-import express, { Request, Response } from "express";
+import express, { type Request, type Response } from "express";
 import path from "node:path";
 import fs from "node:fs/promises";
 import multer from "multer";
 import dayjs from "dayjs";
-import { ensureStorageInitialized, readBooks, saveBooks } from "./storage";
-import { Book, BookStatus, NewBook } from "./types";
+import { ensureStorageInitialized, readBooks, insertBook, readBookById, updateBook, updateBookStatus, deleteBook, replaceAllBooks } from "./storage.ts";
+import type { Book, BookStatus, NewBook } from "./types.ts";
 import { v4 as uuid } from "uuid";
 
 const app = express();
@@ -117,11 +117,11 @@ app.post("/books/import", upload.any(), async (req: Request, res: Response) => {
 			title: String(it.title ?? "Untitled"),
 			author: String(it.author ?? ""),
 			status: (it.status === "planned" || it.status === "reading" || it.status === "done") ? it.status : "planned",
-			dueDate: it.dueDate ? String(it.dueDate) : undefined,
-			attachmentPath: it.attachmentPath ? String(it.attachmentPath) : undefined,
+			...(it.dueDate ? { dueDate: String(it.dueDate) } : {}),
+			...(it.attachmentPath ? { attachmentPath: String(it.attachmentPath) } : {}),
 			createdAt: String(it.createdAt ?? new Date().toISOString()),
 		})) as Book[];
-		await saveBooks(sanitized);
+		await replaceAllBooks(sanitized);
 	} catch {}
 	res.redirect("/books");
 });
@@ -135,13 +135,11 @@ app.post("/books", upload.single("attachment"), async (req: Request, res: Respon
 		title: title?.trim() || "Untitled",
 		author: author?.trim() || "",
 		status: (status as BookStatus) || "planned",
-		dueDate: dueDate ? dayjs(dueDate).toISOString() : undefined,
-		attachmentPath: req.file ? `/uploads/${req.file.filename}` : undefined,
+		...(dueDate ? { dueDate: dayjs(dueDate).toISOString() } : {}),
+		...(req.file ? { attachmentPath: `/uploads/${req.file.filename}` } : {}),
 		createdAt: new Date().toISOString(),
 	};
-	const books = await readBooks();
-	books.push(newBook as Book);
-	await saveBooks(books);
+	await insertBook(newBook as Book);
 	res.redirect("/books");
 });
 
@@ -149,8 +147,7 @@ app.post("/books", upload.single("attachment"), async (req: Request, res: Respon
 app.get("/books/:id/edit", async (req: Request, res: Response) => {
 	await ensureStorageInitialized();
 	const { id } = req.params;
-	const books = await readBooks();
-	const book = books.find((b) => b.id === id);
+	const book = await readBookById(id);
 	if (!book) return res.redirect("/books");
 	res.render("edit", { title: `Edit ${book.title}`, book, dayjs });
 });
@@ -160,24 +157,28 @@ app.post("/books/:id", upload.single("attachment"), async (req: Request, res: Re
 	await ensureStorageInitialized();
 	const { id } = req.params;
 	const { title, author, dueDate, status } = req.body as Record<string, string>;
-	const books = await readBooks();
-	const idx = books.findIndex((b) => b.id === id);
-	if (idx === -1) return res.redirect("/books");
-	books[idx].title = title?.trim() || books[idx].title;
-	books[idx].author = author?.trim() || books[idx].author;
-	books[idx].status = (status as BookStatus) || books[idx].status;
-	books[idx].dueDate = dueDate ? dayjs(dueDate).toISOString() : undefined;
+	const existing = await readBookById(id);
+	if (!existing) return res.redirect("/books");
+	const next: Book = {
+		...existing,
+		title: title?.trim() || existing.title,
+		author: author?.trim() || existing.author,
+		status: (status as BookStatus) || existing.status,
+		...(dueDate ? { dueDate: dayjs(dueDate).toISOString() } : {}),
+		...(existing.attachmentPath ? { attachmentPath: existing.attachmentPath } : {}),
+		createdAt: existing.createdAt,
+	};
 	if (req.file) {
-		
-		if (books[idx].attachmentPath) {
+		const oldAttachment = existing.attachmentPath;
+		if (oldAttachment) {
 			try {
-				const filename = path.basename(books[idx].attachmentPath);
+				const filename = path.basename(oldAttachment as string);
 				await fs.rm(path.join(process.cwd(), "uploads", filename), { force: true });
 			} catch {}
 		}
-		books[idx].attachmentPath = `/uploads/${req.file.filename}`;
+		(next as any).attachmentPath = `/uploads/${req.file.filename}`;
 	}
-	await saveBooks(books);
+	await updateBook(next);
 	res.redirect("/books");
 });
 
@@ -186,12 +187,7 @@ app.post("/books/:id/status", async (req: Request, res: Response) => {
 	await ensureStorageInitialized();
 	const { id } = req.params;
 	const { status } = req.body as { status: BookStatus };
-	const books = await readBooks();
-	const idx = books.findIndex((b) => b.id === id);
-	if (idx !== -1) {
-		books[idx].status = status;
-		await saveBooks(books);
-	}
+	await updateBookStatus(id, status);
 	res.redirect("/books");
 });
 
@@ -199,20 +195,17 @@ app.post("/books/:id/status", async (req: Request, res: Response) => {
 app.post("/books/:id/delete", async (req: Request, res: Response) => {
 	await ensureStorageInitialized();
 	const { id } = req.params;
-	const books = await readBooks();
-	const target = books.find((b) => b.id === id);
-	const next = books.filter((b) => b.id !== id);
-	
+	const target = await readBookById(id);
 	if (target?.attachmentPath) {
 		try {
-			const filename = path.basename(target.attachmentPath);
+			const filename = path.basename(target.attachmentPath as string);
 			const absolute = path.join(process.cwd(), "uploads", filename);
 			await fs.rm(absolute, { force: true });
 		} catch {
 			
 		}
 	}
-	await saveBooks(next);
+	await deleteBook(id);
 	res.redirect("/books");
 });
 
