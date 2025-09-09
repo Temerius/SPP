@@ -147,9 +147,10 @@ app.post("/books", upload.single("attachment"), async (req: Request, res: Respon
 app.get("/books/:id/edit", async (req: Request, res: Response) => {
 	await ensureStorageInitialized();
 	const { id } = req.params;
+	const { status, q, sort } = req.query as { status?: string; q?: string; sort?: string };
 	const book = await readBookById(id);
 	if (!book) return res.redirect("/books");
-	res.render("edit", { title: `Edit ${book.title}`, book, dayjs });
+	res.render("edit", { title: `Edit ${book.title}`, book, dayjs, filters: { status: status ?? "", q: q ?? "", sort: sort ?? "createdAt" } });
 });
 
 
@@ -157,6 +158,7 @@ app.post("/books/:id", upload.single("attachment"), async (req: Request, res: Re
 	await ensureStorageInitialized();
 	const { id } = req.params;
 	const { title, author, dueDate, status } = req.body as Record<string, string>;
+	const { statusFilter, q, sort } = req.body as Record<string, string>;
 	const existing = await readBookById(id);
 	if (!existing) return res.redirect("/books");
 	const next: Book = {
@@ -179,7 +181,11 @@ app.post("/books/:id", upload.single("attachment"), async (req: Request, res: Re
 		(next as any).attachmentPath = `/uploads/${req.file.filename}`;
 	}
 	await updateBook(next);
-	res.redirect("/books");
+	const params = new URLSearchParams();
+	if (statusFilter) params.set('status', statusFilter);
+	if (q) params.set('q', q);
+	params.set('sort', sort || 'createdAt');
+	res.redirect(`/books${params.toString() ? ('?' + params.toString()) : ''}`);
 });
 
 
@@ -187,14 +193,20 @@ app.post("/books/:id/status", async (req: Request, res: Response) => {
 	await ensureStorageInitialized();
 	const { id } = req.params;
 	const { status } = req.body as { status: BookStatus };
+	const { statusFilter, q, sort } = req.body as Record<string, string>;
 	await updateBookStatus(id, status);
-	res.redirect("/books");
+	const params = new URLSearchParams();
+	if (statusFilter) params.set('status', statusFilter);
+	if (q) params.set('q', q);
+	params.set('sort', sort || 'createdAt');
+	res.redirect(`/books${params.toString() ? ('?' + params.toString()) : ''}`);
 });
 
 
 app.post("/books/:id/delete", async (req: Request, res: Response) => {
 	await ensureStorageInitialized();
 	const { id } = req.params;
+	const { status, q, sort } = req.body as Record<string, string>;
 	const target = await readBookById(id);
 	if (target?.attachmentPath) {
 		try {
@@ -206,7 +218,11 @@ app.post("/books/:id/delete", async (req: Request, res: Response) => {
 		}
 	}
 	await deleteBook(id);
-	res.redirect("/books");
+	const params = new URLSearchParams();
+	if (status) params.set('status', status);
+	if (q) params.set('q', q);
+	params.set('sort', sort || 'createdAt');
+	res.redirect(`/books${params.toString() ? ('?' + params.toString()) : ''}`);
 });
 
 

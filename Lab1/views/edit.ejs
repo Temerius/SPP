@@ -19,6 +19,9 @@
       <section>
         <h2>Edit book</h2>
         <form class="form" method="post" action="/books/<%= book.id %>" enctype="multipart/form-data">
+          <input type="hidden" name="statusFilter" value="<%= (filters && filters.status) || '' %>">
+          <input type="hidden" name="q" value="<%= (filters && filters.q) || '' %>">
+          <input type="hidden" name="sort" value="<%= (filters && filters.sort) || 'createdAt' %>">
           <label>Title
             <input type="text" name="title" value="<%= book.title %>" required />
           </label>
@@ -43,7 +46,9 @@
           </label>
           <div class="actions">
             <button class="btn" type="submit">Save</button>
-            <a class="btn secondary" href="/books">Cancel</a>
+            <a class="btn secondary" href="/books?<%=
+              new URLSearchParams({ status: (filters&&filters.status)||'', q: (filters&&filters.q)||'', sort: (filters&&filters.sort)||'createdAt' }).toString()
+            %>">Cancel</a>
           </div>
         </form>
       </section>

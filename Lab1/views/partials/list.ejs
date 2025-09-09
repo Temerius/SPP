@@ -26,6 +26,9 @@
       <div class="card-header">
         <h3><%= b.title %></h3>
         <form method="post" action="/books/<%= b.id %>/delete">
+          <input type="hidden" name="status" value="<%= (filters && filters.status) || '' %>">
+          <input type="hidden" name="q" value="<%= (filters && filters.q) || '' %>">
+          <input type="hidden" name="sort" value="<%= (filters && filters.sort) || 'createdAt' %>">
           <button class="btn danger" type="submit">Delete</button>
         </form>
       </div>
@@ -41,12 +44,17 @@
         <p>Attachment: <a href="<%= b.attachmentPath %>" target="_blank">download</a></p>
       <% } %>
       <form class="inline" method="post" action="/books/<%= b.id %>/status">
+        <input type="hidden" name="statusFilter" value="<%= (filters && filters.status) || '' %>">
+        <input type="hidden" name="q" value="<%= (filters && filters.q) || '' %>">
+        <input type="hidden" name="sort" value="<%= (filters && filters.sort) || 'createdAt' %>">
         <select name="status" onchange="this.form.submit()">
           <option value="planned" <%= b.status==='planned'?'selected':'' %>>Planned</option>
           <option value="reading" <%= b.status==='reading'?'selected':'' %>>Reading</option>
           <option value="done" <%= b.status==='done'?'selected':'' %>>Done</option>
         </select>
-        <a class="btn secondary" href="/books/<%= b.id %>/edit">Edit</a>
+        <a class="btn secondary" href="/books/<%= b.id %>/edit?<%=
+          new URLSearchParams({ status: (filters&&filters.status)||'', q: (filters&&filters.q)||'', sort: (filters&&filters.sort)||'createdAt' }).toString()
+        %>">Edit</a>
       </form>
       
     </li>
