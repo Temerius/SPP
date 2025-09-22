@@ -208,15 +208,15 @@ app.post("/books/:id/delete", async (req: Request, res: Response) => {
 	const { id } = req.params;
 	const { status, q, sort } = req.body as Record<string, string>;
 	const target = await readBookById(id);
-	if (target?.attachmentPath) {
-		try {
-			const filename = path.basename(target.attachmentPath as string);
-			const absolute = path.join(process.cwd(), "uploads", filename);
-			await fs.rm(absolute, { force: true });
-		} catch {
+	// if (target?.attachmentPath) {
+	// 	try {
+	// 		const filename = path.basename(target.attachmentPath as string);
+	// 		const absolute = path.join(process.cwd(), "uploads", filename);
+	// 		await fs.rm(absolute, { force: true });
+	// 	} catch {
 			
-		}
-	}
+	// 	}
+	// }
 	await deleteBook(id);
 	const params = new URLSearchParams();
 	if (status) params.set('status', status);

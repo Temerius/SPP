@@ -1,0 +1,38 @@
+[
+  {
+    "id": "8d1bc679-ed4d-40ed-a3be-945464d55381",
+    "title": "Test2",
+    "author": "Me",
+    "status": "reading",
+    "createdAt": "2025-09-09T09:54:12.754Z",
+    "dueDate": "2025-09-22T00:00:00.000Z",
+    "attachmentPath": "/uploads/1757421575556-491835275-falcon2520925_image_20221009234147.png"
+  },
+  {
+    "id": "b9410033-2ebc-4926-a080-cf3faaa9ae76",
+    "title": "Book2",
+    "author": "They",
+    "status": "reading",
+    "createdAt": "2025-09-09T09:51:30.225Z",
+    "dueDate": "2025-09-30T00:00:00.000Z",
+    "attachmentPath": "/uploads/1757411490203-312466790-rabstol_net_the_elder_scrolls_skyrim_02.jpg"
+  },
+  {
+    "id": "0f11f320-f8a5-4637-917a-ecfbd0526e31",
+    "title": "Book1",
+    "author": "Виталя",
+    "status": "reading",
+    "createdAt": "2025-09-09T09:18:06.774Z",
+    "dueDate": "2025-09-16T00:00:00.000Z",
+    "attachmentPath": "/uploads/1757409486757-759542145-E-kskursii-dlya-detej-v-Belarusi-i-v-drugih-stranah.jpg"
+  },
+  {
+    "id": "8a7df078-17e8-433a-ae5e-2c864532e5e9",
+    "title": "Player's handbook",
+    "author": "Me",
+    "status": "done",
+    "createdAt": "2025-09-09T09:14:39.557Z",
+    "dueDate": "2023-09-20T00:00:00.000Z",
+    "attachmentPath": "/uploads/1757421994987-891448800-WIN_20231110_10_58_20_Pro.jpg"
+  }
+]
