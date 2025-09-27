@@ -219,4 +219,3 @@ const ProjectModal = ({ project, onClose, onSave }) => {
 export default ProjectModal;
 
 
-

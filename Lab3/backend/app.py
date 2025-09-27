@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, make_response
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from flask_migrate import Migrate
@@ -11,6 +11,9 @@ import json
 import time
 import psycopg2
 from psycopg2 import OperationalError
+from auth_service import AuthService
+from auth_middleware import token_required, admin_required, manager_required, optional_auth
+import jwt
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'postgresql://hr_user:hr_password@localhost:5432/hr_management')
@@ -19,7 +22,23 @@ app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
-CORS(app)
+CORS(app, 
+     supports_credentials=True, 
+     origins=['http://localhost:3000'], 
+     allow_headers=['Content-Type', 'Authorization'],
+     methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
+
+# Инициализация сервиса аутентификации
+auth_service = AuthService()
+
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
+    role = db.Column(db.String(50), default='user')  # user, manager, admin
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_login = db.Column(db.DateTime)
 
 class Employee(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -57,7 +76,178 @@ employee_project = db.Table('employee_project',
     db.Column('project_id', db.Integer, db.ForeignKey('project.id'), primary_key=True)
 )
 
+# Обработка CORS preflight запросов
+@app.before_request
+def handle_preflight():
+    if request.method == "OPTIONS":
+        response = make_response()
+        response.headers.add("Access-Control-Allow-Origin", "http://localhost:3000")
+        response.headers.add('Access-Control-Allow-Headers', "Content-Type,Authorization")
+        response.headers.add('Access-Control-Allow-Methods', "GET,PUT,POST,DELETE,OPTIONS")
+        response.headers.add('Access-Control-Allow-Credentials', 'true')
+        return response
+
+# Маршруты аутентификации
+@app.route('/api/auth/register', methods=['POST'])
+def register():
+    data = request.get_json()
+    
+    if not data or not data.get('email') or not data.get('password'):
+        return jsonify({'message': 'Email and password are required'}), 400
+    
+    # Проверяем, существует ли пользователь
+    if User.query.filter_by(email=data['email']).first():
+        return jsonify({'message': 'User already exists'}), 400
+    
+    # Создаем нового пользователя
+    password_hash = auth_service.hash_password(data['password'])
+    user = User(
+        email=data['email'],
+        password_hash=password_hash,
+        role=data.get('role', 'user')
+    )
+    
+    db.session.add(user)
+    db.session.commit()
+    
+    return jsonify({'message': 'User created successfully'}), 201
+
+@app.route('/api/auth/login', methods=['POST'])
+def login():
+    data = request.get_json()
+    
+    if not data or not data.get('email') or not data.get('password'):
+        return jsonify({'message': 'Email and password are required'}), 400
+    
+    print(f"Login attempt for email: {data.get('email')}")
+    
+    user = User.query.filter_by(email=data['email'], is_active=True).first()
+    
+    if not user or not auth_service.verify_password(data['password'], user.password_hash):
+        print(f"Login failed for email: {data.get('email')}")
+        return jsonify({'message': 'Invalid credentials'}), 401
+    
+    # Создаем токены
+    access_token = auth_service.create_access_token(user.id, user.email, user.role)
+    refresh_token = auth_service.create_refresh_token(user.id, user.email)
+    
+    print(f"New tokens created for user: {user.email}, role: {user.role}")
+    
+    # Обновляем время последнего входа
+    user.last_login = datetime.utcnow()
+    db.session.commit()
+    
+    # Создаем ответ с cookies
+    response = make_response(jsonify({
+        'message': 'Login successful',
+        'user': {
+            'id': user.id,
+            'email': user.email,
+            'role': user.role
+        }
+    }))
+    
+    # Устанавливаем HttpOnly cookies
+    response.set_cookie(
+        'access_token',
+        access_token,
+        httponly=True,
+        secure=False,  # В продакшене должно быть True для HTTPS
+        samesite='Lax',
+        max_age=60 * 60  # 1 час для тестирования
+    )
+    
+    response.set_cookie(
+        'refresh_token',
+        refresh_token,
+        httponly=True,
+        secure=False,  # В продакшене должно быть True для HTTPS
+        samesite='Lax',
+        max_age=7 * 24 * 60 * 60  # 7 дней
+    )
+    
+    return response
+
+@app.route('/api/auth/refresh', methods=['POST'])
+def refresh_token():
+    refresh_token = request.cookies.get('refresh_token')
+    
+    if not refresh_token:
+        return jsonify({'message': 'Refresh token is missing'}), 401
+    
+    try:
+        new_tokens = auth_service.refresh_access_token(refresh_token)
+        
+        response = make_response(jsonify({
+            'message': 'Token refreshed successfully'
+        }))
+        
+        response.set_cookie(
+            'access_token',
+            new_tokens['access_token'],
+            httponly=True,
+            secure=False,
+            samesite='Lax',
+            max_age=60 * 60  # 1 час для тестирования
+        )
+        
+        return response
+        
+    except jwt.InvalidTokenError:
+        return jsonify({'message': 'Invalid refresh token'}), 401
+
+@app.route('/api/auth/logout', methods=['POST'])
+def logout():
+    refresh_token = request.cookies.get('refresh_token')
+    access_token = request.cookies.get('access_token')
+    
+    print(f"Logout request - Access token present: {bool(access_token)}")
+    print(f"Logout request - Refresh token present: {bool(refresh_token)}")
+    
+    if refresh_token:
+        auth_service.logout(refresh_token)
+        print("Refresh token revoked from Redis")
+    
+    response = make_response(jsonify({'message': 'Logged out successfully'}))
+    
+    # Удаляем cookies
+    response.set_cookie('access_token', '', expires=0)
+    response.set_cookie('refresh_token', '', expires=0)
+    
+    print("Cookies cleared in response")
+    return response
+
+@app.route('/api/auth/me', methods=['GET'])
+@token_required
+def get_current_user():
+    return jsonify({
+        'user': {
+            'id': request.current_user['id'],
+            'email': request.current_user['email'],
+            'role': request.current_user['role']
+        }
+    })
+
+@app.route('/api/auth/change-password', methods=['POST'])
+@token_required
+def change_password():
+    data = request.get_json()
+    
+    if not data or not data.get('current_password') or not data.get('new_password'):
+        return jsonify({'message': 'Current password and new password are required'}), 400
+    
+    user = User.query.get(request.current_user['id'])
+    
+    if not auth_service.verify_password(data['current_password'], user.password_hash):
+        return jsonify({'message': 'Current password is incorrect'}), 400
+    
+    user.password_hash = auth_service.hash_password(data['new_password'])
+    db.session.commit()
+    
+    return jsonify({'message': 'Password changed successfully'})
+
 @app.route('/api/employees', methods=['GET'])
+@token_required
 def get_employees():
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 10, type=int)
@@ -99,6 +289,7 @@ def get_employees():
     })
 
 @app.route('/api/employees/<int:employee_id>', methods=['GET'])
+@token_required
 def get_employee(employee_id):
     employee = Employee.query.get_or_404(employee_id)
     return jsonify({
@@ -122,6 +313,8 @@ def get_employee(employee_id):
     })
 
 @app.route('/api/employees', methods=['POST'])
+@token_required
+@manager_required
 def create_employee():
     data = request.get_json()
     
@@ -150,6 +343,8 @@ def create_employee():
     return jsonify({'id': employee.id, 'message': 'Employee created successfully'}), 201
 
 @app.route('/api/employees/<int:employee_id>', methods=['PUT'])
+@token_required
+@manager_required
 def update_employee(employee_id):
     employee = Employee.query.get_or_404(employee_id)
     data = request.get_json()
@@ -179,6 +374,8 @@ def update_employee(employee_id):
     return jsonify({'message': 'Employee updated successfully'})
 
 @app.route('/api/employees/<int:employee_id>', methods=['DELETE'])
+@token_required
+@admin_required
 def delete_employee(employee_id):
     employee = Employee.query.get_or_404(employee_id)
     employee.is_active = False
@@ -187,6 +384,7 @@ def delete_employee(employee_id):
     return jsonify({'message': 'Employee deactivated successfully'})
 
 @app.route('/api/employees/<int:employee_id>/avatar', methods=['POST'])
+@token_required
 def upload_avatar(employee_id):
     employee = Employee.query.get_or_404(employee_id)
     
@@ -223,6 +421,7 @@ def upload_avatar(employee_id):
     return jsonify({'error': 'Invalid file type'}), 400
 
 @app.route('/api/projects', methods=['GET'])
+@token_required
 def get_projects():
     projects = Project.query.all()
     return jsonify([{
@@ -245,6 +444,8 @@ def get_projects():
     } for proj in projects])
 
 @app.route('/api/projects', methods=['POST'])
+@token_required
+@manager_required
 def create_project():
     data = request.get_json()
     
@@ -269,6 +470,7 @@ def create_project():
     return jsonify({'id': project.id, 'message': 'Project created successfully'}), 201
 
 @app.route('/api/projects/<int:project_id>', methods=['GET'])
+@token_required
 def get_project(project_id):
     project = Project.query.get_or_404(project_id)
     return jsonify({
@@ -291,6 +493,8 @@ def get_project(project_id):
     })
 
 @app.route('/api/projects/<int:project_id>', methods=['PUT'])
+@token_required
+@manager_required
 def update_project(project_id):
     project = Project.query.get_or_404(project_id)
     data = request.get_json()
@@ -312,6 +516,8 @@ def update_project(project_id):
     return jsonify({'message': 'Project updated successfully'})
 
 @app.route('/api/projects/<int:project_id>/employees', methods=['POST'])
+@token_required
+@manager_required
 def assign_employee_to_project(project_id):
     project = Project.query.get_or_404(project_id)
     data = request.get_json()
@@ -324,6 +530,8 @@ def assign_employee_to_project(project_id):
     return jsonify({'message': 'Employee assigned to project successfully'})
 
 @app.route('/api/projects/<int:project_id>/employees/<int:employee_id>', methods=['DELETE'])
+@token_required
+@manager_required
 def remove_employee_from_project(project_id, employee_id):
     project = Project.query.get_or_404(project_id)
     employee = Employee.query.get_or_404(employee_id)
@@ -334,6 +542,7 @@ def remove_employee_from_project(project_id, employee_id):
     return jsonify({'message': 'Employee removed from project successfully'})
 
 @app.route('/api/dashboard/stats', methods=['GET'])
+@token_required
 def get_dashboard_stats():
     total_employees = Employee.query.filter(Employee.is_active == True).count()
     total_projects = Project.query.count()
@@ -348,6 +557,7 @@ def get_dashboard_stats():
     })
 
 @app.route('/api/dashboard/departments', methods=['GET'])
+@token_required
 def get_department_stats():
     stats = db.session.query(
         Employee.department,
@@ -368,6 +578,22 @@ def uploaded_avatar(filename):
 def allowed_file(filename):
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'bmp', 'pdf', 'doc', 'docx'}
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def create_default_admin():
+    """Создает администратора по умолчанию"""
+    admin_email = 'admin@hr.com'
+    admin_password = 'admin123'
+    
+    # Проверяем, существует ли уже администратор
+    if not User.query.filter_by(email=admin_email).first():
+        admin = User(
+            email=admin_email,
+            password_hash=auth_service.hash_password(admin_password),
+            role='admin'
+        )
+        db.session.add(admin)
+        db.session.commit()
+        print(f"Default admin created: {admin_email} / {admin_password}")
 
 def wait_for_db():
     """Wait for database to be ready"""
@@ -413,6 +639,10 @@ if __name__ == '__main__':
             try:
                 db.create_all()
                 print("Database tables created successfully!")
+                
+                # Создаем администратора по умолчанию
+                create_default_admin()
+                
             except Exception as e:
                 print(f"Error creating database tables: {e}")
         

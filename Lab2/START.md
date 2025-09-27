@@ -64,3 +64,4 @@ docker-compose up --build
 - **File uploads** с оптимизацией изображений
 
 
+

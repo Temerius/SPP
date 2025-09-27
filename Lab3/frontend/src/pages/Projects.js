@@ -36,8 +36,14 @@ const Projects = () => {
       setIsModalOpen(false);
       fetchProjects();
     } catch (error) {
-      toast.error('Failed to create project');
-      console.error('Error creating project:', error);
+      if (error.response?.status === 403) {
+        toast.error('You do not have permission to create projects. Manager or Admin role required.');
+      } else if (error.response?.status === 401) {
+        toast.error('Please log in again');
+      } else {
+        toast.error('Failed to create project');
+        console.error('Error creating project:', error);
+      }
     }
   };
 
@@ -49,8 +55,14 @@ const Projects = () => {
       setEditingProject(null);
       fetchProjects();
     } catch (error) {
-      toast.error('Failed to update project');
-      console.error('Error updating project:', error);
+      if (error.response?.status === 403) {
+        toast.error('You do not have permission to update projects. Manager or Admin role required.');
+      } else if (error.response?.status === 401) {
+        toast.error('Please log in again');
+      } else {
+        toast.error('Failed to update project');
+        console.error('Error updating project:', error);
+      }
     }
   };
 
@@ -231,6 +243,5 @@ const Projects = () => {
 };
 
 export default Projects;
-
 
 
