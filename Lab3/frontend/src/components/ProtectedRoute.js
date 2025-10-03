@@ -17,7 +17,6 @@ const ProtectedRoute = ({ children, requiredRole = null }) => {
     return <Navigate to="/login" replace />;
   }
 
-  // Проверяем роль, если требуется
   if (requiredRole) {
     const roleHierarchy = { user: 1, manager: 2, admin: 3 };
     const userRoleLevel = roleHierarchy[user?.role] || 0;

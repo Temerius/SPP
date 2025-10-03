@@ -7,13 +7,13 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  withCredentials: true, // Включаем отправку cookies
+  withCredentials: true,
 });
 
 
 api.interceptors.request.use(
   (config) => {
-    // Токены теперь передаются через HttpOnly cookies, поэтому не нужно добавлять их в заголовки
+    
     return config;
   },
   (error) => {
@@ -38,13 +38,13 @@ api.interceptors.response.use(
           break;
         case 401:
           console.error('Unauthorized:', 'Please log in again');
-          // При 401 ошибке перенаправляем на страницу логина только если это не запрос /auth/me
+          
           if (!error.config?.url?.includes('/auth/me')) {
-            // Попробуем обновить токен перед перенаправлением
+            
             try {
               const refreshResponse = await api.post('/auth/refresh');
               if (refreshResponse.status === 200) {
-                // Токен обновлен, повторяем оригинальный запрос
+                
                 return api.request(error.config);
               }
             } catch (refreshError) {
@@ -55,8 +55,6 @@ api.interceptors.response.use(
           break;
         case 403:
           console.error('Forbidden:', 'You do not have permission to perform this action');
-          // Для 403 ошибки НЕ перенаправляем, показываем уведомление
-          // Перенаправление будет обработано в компонентах
           break;
         case 404:
           console.error('Not Found:', 'Resource not found');

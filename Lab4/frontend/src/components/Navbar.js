@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bell, Search, User, LogOut } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import OnlineUsers from './OnlineUsers';
 
 const Navbar = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -74,9 +73,6 @@ const Navbar = () => {
                   className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent w-64"
                 />
               </form>
-              
-              {/* Компонент онлайн пользователей */}
-              <OnlineUsers />
               
               <button className="relative p-2 text-gray-400 hover:text-gray-600">
                 <Bell className="w-6 h-6" />

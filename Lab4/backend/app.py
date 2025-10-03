@@ -29,10 +29,10 @@ CORS(app,
      allow_headers=['Content-Type', 'Authorization'],
      methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
 
-# Инициализация SocketIO
+
 socketio = SocketIO(app, cors_allowed_origins="http://localhost:3000", logger=True, engineio_logger=True)
 
-# Инициализация сервиса аутентификации
+
 auth_service = AuthService()
 
 class User(db.Model):
@@ -80,7 +80,7 @@ employee_project = db.Table('employee_project',
     db.Column('project_id', db.Integer, db.ForeignKey('project.id'), primary_key=True)
 )
 
-# Обработка CORS preflight запросов
+
 @app.before_request
 def handle_preflight():
     if request.method == "OPTIONS":
@@ -91,7 +91,6 @@ def handle_preflight():
         response.headers.add('Access-Control-Allow-Credentials', 'true')
         return response
 
-# Маршруты аутентификации
 @app.route('/api/auth/register', methods=['POST'])
 def register():
     data = request.get_json()
@@ -99,11 +98,11 @@ def register():
     if not data or not data.get('email') or not data.get('password'):
         return jsonify({'message': 'Email and password are required'}), 400
     
-    # Проверяем, существует ли пользователь
+
     if User.query.filter_by(email=data['email']).first():
         return jsonify({'message': 'User already exists'}), 400
     
-    # Создаем нового пользователя
+
     password_hash = auth_service.hash_password(data['password'])
     user = User(
         email=data['email'],
@@ -131,17 +130,16 @@ def login():
         print(f"Login failed for email: {data.get('email')}")
         return jsonify({'message': 'Invalid credentials'}), 401
     
-    # Создаем токены
+
     access_token = auth_service.create_access_token(user.id, user.email, user.role)
     refresh_token = auth_service.create_refresh_token(user.id, user.email)
     
     print(f"New tokens created for user: {user.email}, role: {user.role}")
     
-    # Обновляем время последнего входа
+
     user.last_login = datetime.utcnow()
     db.session.commit()
     
-    # Создаем ответ с cookies
     response = make_response(jsonify({
         'message': 'Login successful',
         'user': {
@@ -151,23 +149,23 @@ def login():
         }
     }))
     
-    # Устанавливаем HttpOnly cookies
+
     response.set_cookie(
         'access_token',
         access_token,
         httponly=True,
-        secure=False,  # В продакшене должно быть True для HTTPS
+        secure=False,
         samesite='Lax',
-        max_age=60 * 60  # 1 час для тестирования
+        max_age=60 * 60  
     )
     
     response.set_cookie(
         'refresh_token',
         refresh_token,
         httponly=True,
-        secure=False,  # В продакшене должно быть True для HTTPS
+        secure=False,  
         samesite='Lax',
-        max_age=7 * 24 * 60 * 60  # 7 дней
+        max_age=7 * 24 * 60 * 60 
     )
     
     return response
@@ -192,7 +190,7 @@ def refresh_token():
             httponly=True,
             secure=False,
             samesite='Lax',
-            max_age=60 * 60  # 1 час для тестирования
+            max_age=60 * 60  
         )
         
         return response
@@ -583,10 +581,9 @@ def allowed_file(filename):
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'bmp', 'pdf', 'doc', 'docx'}
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-# Хранилище активных пользователей
 active_users = {}
 
-# WebSocket обработчики
+
 @socketio.on('connect')
 def handle_connect():
     print(f'Client connected: {request.sid}')
@@ -594,13 +591,11 @@ def handle_connect():
 @socketio.on('disconnect')
 def handle_disconnect():
     print(f'Client disconnected: {request.sid}')
-    # Удаляем пользователя из активных при отключении
+
     for user_id, user_data in list(active_users.items()):
         if user_data.get('sid') == request.sid:
             del active_users[user_id]
-            # Уведомляем всех о том, что пользователь ушел
             emit('user_offline', {'user_id': user_id}, broadcast=True)
-            # Отправляем всем обновленный список активных пользователей
             emit('active_users', list(active_users.values()), broadcast=True)
             break
 
@@ -612,10 +607,9 @@ def handle_user_online(data):
     user_role = data.get('user_role')
     
     if user_id:
-        # Проверяем, был ли пользователь уже онлайн
         was_online = user_id in active_users
         
-        # Сохраняем информацию о пользователе
+
         active_users[user_id] = {
             'user_id': user_id,
             'sid': request.sid,
@@ -624,7 +618,6 @@ def handle_user_online(data):
             'last_seen': datetime.utcnow().isoformat()
         }
         
-        # Уведомляем всех о том, что пользователь онлайн только если он не был онлайн
         if not was_online:
             emit('user_online', {
                 'user_id': user_id,
@@ -632,7 +625,7 @@ def handle_user_online(data):
                 'role': user_role
             }, broadcast=True)
         
-        # Отправляем всем подключенным пользователям обновленный список активных пользователей
+        
         emit('active_users', list(active_users.values()), broadcast=True)
 
 @socketio.on('user_activity')
@@ -642,7 +635,7 @@ def handle_user_activity(data):
     
     if user_id and user_id in active_users:
         active_users[user_id]['last_seen'] = datetime.utcnow().isoformat()
-        # Можно добавить логику для определения "активности" (печатает, смотрит страницу и т.д.)
+       
 
 @socketio.on('join_room')
 def handle_join_room(data):
@@ -675,7 +668,7 @@ def create_default_admin():
     admin_email = 'admin@hr.com'
     admin_password = 'admin123'
     
-    # Проверяем, существует ли уже администратор
+    
     if not User.query.filter_by(email=admin_email).first():
         admin = User(
             email=admin_email,
@@ -693,7 +686,7 @@ def wait_for_db():
     
     while retry_count < max_retries:
         try:
-            # Parse DATABASE_URL
+            
             db_url = os.environ.get('DATABASE_URL', 'postgresql://hr_user:hr_password@localhost:5432/hr_management')
             if '://' in db_url:
                 db_url = db_url.split('://', 1)[1]
@@ -731,13 +724,13 @@ if __name__ == '__main__':
                 db.create_all()
                 print("Database tables created successfully!")
                 
-                # Создаем администратора по умолчанию
+                
                 create_default_admin()
                 
             except Exception as e:
                 print(f"Error creating database tables: {e}")
         
-        # Запускаем с SocketIO поддержкой
+       
         socketio.run(app, debug=True, host='0.0.0.0', port=5000)
     else:
         print("Cannot start application without database connection")

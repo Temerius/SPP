@@ -28,7 +28,6 @@ CORS(app,
      allow_headers=['Content-Type', 'Authorization'],
      methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
 
-# Инициализация сервиса аутентификации
 auth_service = AuthService()
 
 class User(db.Model):
@@ -76,7 +75,6 @@ employee_project = db.Table('employee_project',
     db.Column('project_id', db.Integer, db.ForeignKey('project.id'), primary_key=True)
 )
 
-# Обработка CORS preflight запросов
 @app.before_request
 def handle_preflight():
     if request.method == "OPTIONS":
@@ -87,19 +85,16 @@ def handle_preflight():
         response.headers.add('Access-Control-Allow-Credentials', 'true')
         return response
 
-# Маршруты аутентификации
 @app.route('/api/auth/register', methods=['POST'])
 def register():
     data = request.get_json()
     
     if not data or not data.get('email') or not data.get('password'):
         return jsonify({'message': 'Email and password are required'}), 400
-    
-    # Проверяем, существует ли пользователь
+
     if User.query.filter_by(email=data['email']).first():
         return jsonify({'message': 'User already exists'}), 400
     
-    # Создаем нового пользователя
     password_hash = auth_service.hash_password(data['password'])
     user = User(
         email=data['email'],
@@ -126,18 +121,15 @@ def login():
     if not user or not auth_service.verify_password(data['password'], user.password_hash):
         print(f"Login failed for email: {data.get('email')}")
         return jsonify({'message': 'Invalid credentials'}), 401
-    
-    # Создаем токены
+
     access_token = auth_service.create_access_token(user.id, user.email, user.role)
     refresh_token = auth_service.create_refresh_token(user.id, user.email)
     
     print(f"New tokens created for user: {user.email}, role: {user.role}")
-    
-    # Обновляем время последнего входа
+
     user.last_login = datetime.utcnow()
     db.session.commit()
     
-    # Создаем ответ с cookies
     response = make_response(jsonify({
         'message': 'Login successful',
         'user': {
@@ -147,21 +139,20 @@ def login():
         }
     }))
     
-    # Устанавливаем HttpOnly cookies
     response.set_cookie(
         'access_token',
         access_token,
         httponly=True,
-        secure=False,  # В продакшене должно быть True для HTTPS
+        secure=False,  
         samesite='Lax',
-        max_age=60 * 60  # 1 час для тестирования
+        max_age=60 * 60 
     )
     
     response.set_cookie(
         'refresh_token',
         refresh_token,
         httponly=True,
-        secure=False,  # В продакшене должно быть True для HTTPS
+        secure=False, 
         samesite='Lax',
         max_age=7 * 24 * 60 * 60  # 7 дней
     )
@@ -188,7 +179,7 @@ def refresh_token():
             httponly=True,
             secure=False,
             samesite='Lax',
-            max_age=60 * 60  # 1 час для тестирования
+            max_age=60 * 60
         )
         
         return response
@@ -210,7 +201,6 @@ def logout():
     
     response = make_response(jsonify({'message': 'Logged out successfully'}))
     
-    # Удаляем cookies
     response.set_cookie('access_token', '', expires=0)
     response.set_cookie('refresh_token', '', expires=0)
     
@@ -584,7 +574,6 @@ def create_default_admin():
     admin_email = 'admin@hr.com'
     admin_password = 'admin123'
     
-    # Проверяем, существует ли уже администратор
     if not User.query.filter_by(email=admin_email).first():
         admin = User(
             email=admin_email,
@@ -602,7 +591,6 @@ def wait_for_db():
     
     while retry_count < max_retries:
         try:
-            # Parse DATABASE_URL
             db_url = os.environ.get('DATABASE_URL', 'postgresql://hr_user:hr_password@localhost:5432/hr_management')
             if '://' in db_url:
                 db_url = db_url.split('://', 1)[1]
@@ -639,8 +627,7 @@ if __name__ == '__main__':
             try:
                 db.create_all()
                 print("Database tables created successfully!")
-                
-                # Создаем администратора по умолчанию
+
                 create_default_admin()
                 
             except Exception as e:

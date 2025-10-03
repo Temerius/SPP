@@ -7,13 +7,13 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  withCredentials: true, // Включаем отправку cookies
+  withCredentials: true, 
 });
 
 
 api.interceptors.request.use(
   (config) => {
-    // Токены теперь передаются через HttpOnly cookies, поэтому не нужно добавлять их в заголовки
+    
     return config;
   },
   (error) => {
@@ -36,8 +36,7 @@ api.interceptors.response.use(
           break;
         case 401:
           console.error('Unauthorized:', 'Please log in again');
-          // НЕ перенаправляем автоматически - это создает циклы
-          // Компоненты сами решат что делать с 401 ошибкой
+         
           break;
         case 403:
           console.error('Forbidden:', 'You do not have permission to perform this action');
