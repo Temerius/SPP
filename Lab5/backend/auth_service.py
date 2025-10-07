@@ -32,7 +32,7 @@ class AuthService:
             'type': 'access',
             'exp': datetime.utcnow() + self.access_token_expire,
             'iat': datetime.utcnow(),
-            'jti': str(uuid.uuid4())  # JWT ID для отслеживания токена
+            'jti': str(uuid.uuid4())  
         }
         return jwt.encode(payload, self.jwt_secret, algorithm='HS256')
     
@@ -48,7 +48,7 @@ class AuthService:
         }
         token = jwt.encode(payload, self.jwt_secret, algorithm='HS256')
         
-        # Сохраняем refresh token в Redis с TTL
+       
         try:
             ttl_seconds = int(self.refresh_token_expire.total_seconds())
             print(f"Saving refresh token to Redis with TTL: {ttl_seconds} seconds")
@@ -71,7 +71,7 @@ class AuthService:
             if payload.get('type') != token_type:
                 raise jwt.InvalidTokenError('Invalid token type')
             
-            # Для refresh токенов проверяем наличие в Redis
+  
             if token_type == 'refresh':
                 if not self.redis_client.exists(f"refresh_token:{token}"):
                     raise jwt.InvalidTokenError('Refresh token not found')
@@ -102,7 +102,7 @@ class AuthService:
                     if self.redis_client.delete(key):
                         revoked_count += 1
             except jwt.InvalidTokenError:
-                # Токен уже невалидный, удаляем его
+
                 self.redis_client.delete(key)
         
         return revoked_count
@@ -110,7 +110,7 @@ class AuthService:
     def blacklist_token(self, token: str, expires_at: datetime) -> bool:
         """Добавляет токен в черный список"""
         try:
-            # Вычисляем время жизни токена
+   
             ttl = int((expires_at - datetime.utcnow()).total_seconds())
             if ttl > 0:
                 self.redis_client.setex(f"blacklist:{token}", ttl, "1")
@@ -129,13 +129,13 @@ class AuthService:
     def refresh_access_token(self, refresh_token: str) -> dict:
         """Обновляет access token используя refresh token"""
         try:
-            # Проверяем refresh token
+         
             payload = self.verify_token(refresh_token, 'refresh')
             user_id = payload['user_id']
             email = payload['email']
             role = payload.get('role', 'user')
             
-            # Создаем новый access token
+         
             new_access_token = self.create_access_token(user_id, email, role)
             
             return {
@@ -149,10 +149,10 @@ class AuthService:
     def logout(self, refresh_token: str) -> bool:
         """Выход из системы - отзывает refresh token"""
         try:
-            # Получаем payload для blacklisting access token
+         
             payload = self.verify_token(refresh_token, 'refresh')
             
-            # Отзываем refresh token
+            
             self.revoke_refresh_token(refresh_token)
             
             return True

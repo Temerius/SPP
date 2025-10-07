@@ -11,7 +11,7 @@ def token_required(f):
     def decorated(*args, **kwargs):
         token = None
         
-        # Получаем токен из cookie
+        # плучаем токен из cookie
         token = request.cookies.get('access_token')
         
         if not token:
@@ -21,20 +21,19 @@ def token_required(f):
             )
         
         try:
-            # Проверяем, не в черном списке ли токен
             if auth_service.is_token_blacklisted(token):
                 return make_response(
                     jsonify({'message': 'Token has been revoked'}), 
                     401
                 )
             
-            # Проверяем токен
+    
             data = auth_service.verify_token(token, 'access')
             current_user_id = data['user_id']
             current_user_email = data['email']
             current_user_role = data.get('role', 'user')
             
-            # Добавляем информацию о пользователе в request
+            # дообавляем информацию о пользователе в request
             request.current_user = {
                 'id': current_user_id,
                 'email': current_user_email,

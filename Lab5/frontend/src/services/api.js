@@ -73,13 +73,21 @@ export const employeesAPI = {
     `;
     return graphqlRequest(mutation, { id }).then(d => ({ data: d.deleteEmployee }));
   },
-  // Keep avatar upload via REST for now; can be moved to GraphQL Upload later
   uploadAvatar: (id, file) => {
+    
     const formData = new FormData();
     formData.append('avatar', file);
     return axios.post((process.env.REACT_APP_API_URL || 'http://localhost:5000/api') + `/employees/${id}/avatar`, formData, {
       withCredentials: true,
       headers: { 'Content-Type': 'multipart/form-data' },
+    }).then(response => {
+      
+      const mutation = `
+        mutation UploadAvatar($employeeId: ID!, $filename: String!) {
+          uploadAvatar(employeeId: $employeeId, filename: $filename) { message }
+        }
+      `;
+      return graphqlRequest(mutation, { employeeId: id, filename: response.data.filename });
     });
   },
 };
@@ -114,7 +122,7 @@ export const projectsAPI = {
     return graphqlRequest(mutation, { id, ...data }).then(d => ({ data: d.updateProject }));
   },
   delete: (id) => {
-    // No explicit deleteProject in schema; simulate by setting status or implement if needed
+
     throw new Error('deleteProject not implemented in GraphQL schema');
   },
   assignEmployee: (projectId, employeeId) => {

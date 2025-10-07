@@ -5,7 +5,8 @@ import websocketService from '../services/websocket';
 const useActivityTracker = () => {
   const { user } = useAuth();
   const lastActivityRef = useRef(Date.now());
-  const activityIntervalRef = useRef(null);
+  const statusTimerRef = useRef(null);
+  const currentStatusRef = useRef('active');
 
   useEffect(() => {
     if (!user) {
@@ -24,20 +25,48 @@ const useActivityTracker = () => {
       return;
     }
 
-    const sendActivity = () => {
-      try {
-        const now = Date.now();
-        const timeSinceLastActivity = now - lastActivityRef.current;
-        
-        if (timeSinceLastActivity >= 30000) {
-          websocketService.sendActivity(user.id);
-          lastActivityRef.current = now;
-        }
-      } catch (error) {
-        console.warn('Failed to send activity:', error);
+    const startStatusTimer = (status) => {
+      // Очищаем предыдущий таймер
+      if (statusTimerRef.current) {
+        clearTimeout(statusTimerRef.current);
       }
+
+      const timeout = status === 'active' ? 30000 : 300000; // 30 сек для active, 5 мин для idle
+      
+      statusTimerRef.current = setTimeout(() => {
+        const newStatus = status === 'active' ? 'idle' : 'offline';
+        currentStatusRef.current = newStatus;
+        
+        // Отправляем новый статус на сервер
+        websocketService.sendStatusUpdate(user.id, newStatus);
+        
+        // Если стал offline, запускаем таймер на удаление
+        if (newStatus === 'offline') {
+          setTimeout(() => {
+            websocketService.sendUserOffline(user.id);
+          }, 1000);
+        }
+      }, timeout);
     };
 
+    const handleActivity = () => {
+      const now = Date.now();
+      const timeSinceLastActivity = now - lastActivityRef.current;
+      
+      // Если активность была недавно (менее 5 секунд), сбрасываем таймер
+      if (timeSinceLastActivity < 5000) {
+        lastActivityRef.current = now;
+        
+        // Если статус был idle, возвращаем к active
+        if (currentStatusRef.current === 'idle') {
+          currentStatusRef.current = 'active';
+          websocketService.sendStatusUpdate(user.id, 'active');
+        }
+        
+        // Перезапускаем таймер
+        startStatusTimer('active');
+      }
+    };
 
     const activityEvents = [
       'mousedown',
@@ -48,36 +77,23 @@ const useActivityTracker = () => {
       'click'
     ];
 
-
-    const handleActivity = () => {
-      lastActivityRef.current = Date.now();
-    };
-
- 
+    // Добавляем обработчики событий
     activityEvents.forEach(event => {
       document.addEventListener(event, handleActivity, true);
     });
 
- 
-    activityIntervalRef.current = setInterval(sendActivity, 30000);
-
+    // Запускаем начальный таймер
+    startStatusTimer('active');
 
     return () => {
       activityEvents.forEach(event => {
         document.removeEventListener(event, handleActivity, true);
       });
       
-      if (activityIntervalRef.current) {
-        clearInterval(activityIntervalRef.current);
+      if (statusTimerRef.current) {
+        clearTimeout(statusTimerRef.current);
       }
     };
-  }, [user]);
-
- 
-  useEffect(() => {
-    if (user && websocketService.getConnectionStatus()) {
-      websocketService.sendActivity(user.id);
-    }
   }, [user]);
 
   return null;

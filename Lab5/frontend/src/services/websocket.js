@@ -66,6 +66,14 @@ class WebSocketService {
     this.socket.on('user_left_room', (data) => {
       this.emit('user_left_room', data);
     });
+
+    this.socket.on('user_status_changed', (data) => {
+      this.emit('user_status_changed', data);
+    });
+
+    this.socket.on('users_status_update', (data) => {
+      this.emit('users_status_update', data);
+    });
   }
 
   disconnect() {
@@ -83,6 +91,26 @@ class WebSocketService {
       }
     } catch (error) {
       console.warn('Failed to send activity via WebSocket:', error);
+    }
+  }
+
+  sendStatusUpdate(userId, status) {
+    try {
+      if (this.socket && this.isConnected) {
+        this.socket.emit('user_status_update', { user_id: userId, status: status });
+      }
+    } catch (error) {
+      console.warn('Failed to send status update via WebSocket:', error);
+    }
+  }
+
+  sendUserOffline(userId) {
+    try {
+      if (this.socket && this.isConnected) {
+        this.socket.emit('user_offline', { user_id: userId });
+      }
+    } catch (error) {
+      console.warn('Failed to send user offline via WebSocket:', error);
     }
   }
 

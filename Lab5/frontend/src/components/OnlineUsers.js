@@ -3,7 +3,7 @@ import { Users, Wifi, WifiOff } from 'lucide-react';
 import websocketService from '../services/websocket';
 
 const OnlineUsers = () => {
-  const [onlineUsers, setOnlineUsers] = useState([]);
+  const [usersDict, setUsersDict] = useState({});
   const [isConnected, setIsConnected] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
 
@@ -13,33 +13,10 @@ const OnlineUsers = () => {
       return;
     }
 
-
-            const handleUserOnline = (data) => {
-              setOnlineUsers(prev => {
-
-                const filtered = prev.filter(user => user.user_id !== data.user_id);
-                return [...filtered, data];
-              });
-            };
-
-    const handleUserOffline = (data) => {
-      setOnlineUsers(prev => prev.filter(user => user.user_id !== data.user_id));
+    const handleUsersStatusUpdate = (users) => {
+      console.log('Users status update received:', users);
+      setUsersDict(users);
     };
-
-            const handleActiveUsers = (users) => {
-              
-              const uniqueUsers = users.reduce((acc, user) => {
-                const existingIndex = acc.findIndex(u => u.user_id === user.user_id);
-                if (existingIndex === -1) {
-                  acc.push(user);
-                } else {
-                  
-                  acc[existingIndex] = user;
-                }
-                return acc;
-              }, []);
-              setOnlineUsers(uniqueUsers);
-            };
 
     const handleConnectionStatus = () => {
       try {
@@ -50,20 +27,19 @@ const OnlineUsers = () => {
       }
     };
 
-  
-    websocketService.on('user_online', handleUserOnline);
-    websocketService.on('user_offline', handleUserOffline);
-    websocketService.on('active_users', handleActiveUsers);
+    // Подписываемся на обновления словаря пользователей
+    websocketService.on('users_status_update', handleUsersStatusUpdate);
 
     const statusInterval = setInterval(handleConnectionStatus, 5000);
 
     return () => {
-      websocketService.off('user_online', handleUserOnline);
-      websocketService.off('user_offline', handleUserOffline);
-      websocketService.off('active_users', handleActiveUsers);
+      websocketService.off('users_status_update', handleUsersStatusUpdate);
       clearInterval(statusInterval);
     };
   }, []);
+
+  // Преобразуем словарь в массив для отображения
+  const onlineUsers = Object.values(usersDict);
 
   const getRoleColor = (role) => {
     switch (role) {
@@ -86,6 +62,32 @@ const OnlineUsers = () => {
         return 'Manager';
       case 'user':
         return 'User';
+      default:
+        return 'Unknown';
+    }
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'active':
+        return 'bg-green-500';
+      case 'idle':
+        return 'bg-yellow-500';
+      case 'offline':
+        return 'bg-red-500';
+      default:
+        return 'bg-gray-500';
+    }
+  };
+
+  const getStatusText = (status) => {
+    switch (status) {
+      case 'active':
+        return 'Active';
+      case 'idle':
+        return 'Idle';
+      case 'offline':
+        return 'Offline';
       default:
         return 'Unknown';
     }
@@ -153,8 +155,8 @@ const OnlineUsers = () => {
                           {user.email ? user.email[0].toUpperCase() : 'U'}
                         </span>
                       </div>
-                      {/* Индикатор онлайн */}
-                      <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
+                      {/* Индикатор статуса */}
+                      <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 ${getStatusColor(user.status || 'active')} rounded-full border-2 border-white`}></div>
                     </div>
 
                     {/* Информация о пользователе */}
